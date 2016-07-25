@@ -90,3 +90,145 @@
 	
 	注意：如果你调用的函数有`copy`或`create`字眼，就表示你持有了该对象，需要手动去释放，对应的持有函数有CGColorSpaceRetain、CFRetain和释放函数CGColorSpaceRelease、 CFRelease。
 		
+
+## 2.使用姿势
+**写在前面**：所以Quartz 2D的API均要在UIView的`-(void)drawRect:(CGRect)rect;`方法中调用。这是因为Quartz中使用的上下文只能在该方法获取到，这是与UIView的生命周期相关，这个方法作为生命周期的回调来处理渲染。
+
+### 2.1 使用最原生API（比较繁琐）
+
+* 从画一条线管中窥豹
+	
+		- (void)drawSimleLine{
+    		// 1.获取上下文（画作的封装）
+    		CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    		// 2.描述绘制线条
+    		CGMutablePathRef path = CGPathCreateMutable();
+    
+    		// 3.设置起点 --> 终点 --> 渲染
+    
+    		// 起点（30，30）
+    		CGPathMoveToPoint(path, NULL, 10, 50);
+    
+    		// 添加一根线到某个终点（100，100）
+    		CGPathAddLineToPoint(path, NULL, 100, 100);
+    
+    		// 4.把路径添加到上下文
+    		CGContextAddPath(ctx, path);
+    
+    		// 5.渲染上下文
+    		CGContextStrokePath(ctx);
+    
+    		// 6.内存释放
+    		CGPathRelease(path);
+		}
+		
+* 稍微简洁地画一条线
+
+		- (void)drawSimleLine2{
+    		// 1.获取上下文
+    		CGContextRef ctx = UIGraphicsGetCurrentContext();
+    
+    		// 2.描述路径
+    		// 设置起点、线、终点
+    		CGContextMoveToPoint(ctx, 20, 50);
+    
+    		CGContextAddLineToPoint(ctx, 100, 100);
+    
+    		// 3.渲染上下文
+    		CGContextStrokePath(ctx);
+		}
+
+* 从上面的两条线，我们可以归纳出Quartz 2D画图的步骤：
+		
+		1.开启上下文 --> 2.画图（点、线） --> 3.渲染 --> 4.内存释放
+		
+* 第一章中我们提到了上下文有一个重要特性：状态，我们可以理解为就某一时点上下文图像的熟悉。在`渲染上下文之前`我们可以通过设置状态改变最终渲染的样式：
+
+		// 颜色
+    	[[UIColor redColor] setStroke];
+    
+    	// 线宽
+    	CGContextSetLineWidth(ctx, 5);
+    
+    	// 设置连接样式
+    	CGContextSetLineJoin(ctx, kCGLineJoinBevel);
+    
+    	// 设置顶角样式
+    	CGContextSetLineCap(ctx, kCGLineCapRound);
+    	
+* 对于复杂的图像，光靠点和直线肯定是不够的，Quartz 2D支持通过控制点来绘制任意曲线：
+		
+		@param c   上下文
+		@param cpx 控制点x
+		@param cpy 控制点y
+		@param x   终点x
+		@param y   终点y
+		void CGContextAddQuadCurveToPoint(CGContextRef __nullable c,CGFloat cpx, CGFloat cpy, CGFloat x, CGFloat y);
+		
+		关于控制点，可以见下图。
+		
+![图2.1](https://github.com/wwhisdavid/MD_Pictures/blob/master/Quartz2D/图2.1.png?raw=true)
+
+
+### 2.2 使用UIKit封装的API
+
+* Apple考虑到Quartz 2D使用的繁琐，和内存管理的问题。使用了`UIBezierPath`对Quartz 2D进行了封装，API十分面向对象。同样是画一条线：
+
+		// 1.创建路径
+    	UIBezierPath *path = [UIBezierPath bezierPath];
+    
+    	// 2.设置起点
+    	[path moveToPoint:CGPointMake(30, 50)];
+    
+    	// 添加一根线到某个点
+    	[path addLineToPoint:CGPointMake(100, 100)];
+    	// 颜色
+    	[[UIColor greenColor] set];
+    	// 线宽
+		path.lineWidth = 10;
+    	
+    	// 3.绘制路径
+    	[path stroke];
+    	
+* 画一些基本图形：
+		
+		// 1. 扇形
+		// 半径
+		CGFloat radius = rect.size.width * 0.5;
+		// 圆心
+    	CGPoint center = CGPointMake(radius, radius);
+    	// 圆弧终点角度
+    	CGFloat endA = M_PI_2;
+    	// 设置圆弧路径（其中clockwise:YES表示顺时针渲染）
+    	UIBezierPath *path = [UIBezierPath bezierPathWithArcCenter:center radius:radius - 2 startAngle:- M_PI_2 endAngle:endA clockwise:YES];
+    	// 从弧线上拉直线到圆心
+    	[path addLineToPoint:center];
+    	// 闭合扇形
+    	[path closePath];
+    	// 以填充方式渲染
+    	[path fill];
+    	
+    	// 2. 圆角矩形
+    	// cornerRadius表示圆角半径
+    	UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 10, 100, 100) cornerRadius:30];
+    	[path stroke];
+    	
+* 当然，同样可以画复杂曲线（有两个极点）：
+
+
+    	UIBezierPath *path = [UIBezierPath bezierPath];
+    	// 设定起点
+    	[path moveToPoint:CGPointMake(0,0)];
+    	// 添加两个控制点
+    	[path addCurveToPoint:CGPointMake(100, 100)
+             controlPoint1:CGPointMake(50, 0)   
+             controlPoint2:CGPointMake(0, 50)];            
+    	// 添加终点
+    	[path addLineToPoint:CGPointMake(0, 100)];
+    	// 闭合
+    	[aPath closePath];
+    	
+    	大概结果见下图。
+		
+![图2.2](https://github.com/wwhisdavid/MD_Pictures/blob/master/Quartz2D/图2.2.png?raw=true)
