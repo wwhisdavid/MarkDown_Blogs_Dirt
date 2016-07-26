@@ -227,8 +227,99 @@
     	// 添加终点
     	[path addLineToPoint:CGPointMake(0, 100)];
     	// 闭合
-    	[aPath closePath];
+    	[path closePath];
     	
     	大概结果见下图。
 		
 ![图2.2](https://github.com/wwhisdavid/MD_Pictures/blob/master/Quartz2D/图2.2.png?raw=true)
+
+## 3.基本绘图案例
+
+### 3.1 进度圈绘制
+
+* 这里举一个使用UIBezierPath绘制一个类似ProgressHUB的进度圈。这里的思路来自于上文绘制圆弧，在`0°--> 360°`范围内通过调用UIView的重绘回调（关于UIView的各种绘制时机，下一章介绍），不断在圆心向圆弧画线，且以fill方式渲染。具体代码如下：
+
+		- (void)drawRect:(CGRect)rect
+		{
+    		CGFloat radius = rect.size.width * 0.5;
+    		CGPoint center = CGPointMake(radius, radius);
+    		// 此处的_progress是一个CGFloat变量（0，1），控制当前的进度
+    		CGFloat endA = - M_PI_2 + _progress * M_PI * 2;
+    
+    		UIBezierPath *path = [UIBezierPath bezierPathWithArcCenter:center radius:radius - 2 startAngle:-M_PI_2 endAngle:endA clockwise:YES];
+    		[path addLineToPoint:center];
+    		[path closePath];
+    		[path fill];
+		}
+
+		// 上述代码仅仅描述了一次扇形的微分绘制，外部通过设置_progress属性来重绘，代码如下：
+		- (void)setProgress:(CGFloat)progress
+		{
+    		_progress = progress;
+    		// 系统重绘
+    		[self setNeedsDisplay];
+		}
+
+![图3.1](https://github.com/wwhisdavid/MD_Pictures/blob/master/Quartz2D/图3.1.png?raw=true)
+		
+### 3.2 饼状图
+
+* 本节说明如何使用UIBezierPath绘制饼状图。绘制饼状图的思路与绘制进度圈的思路基本一致，根据数据比值在360°范围内绘制各自扇形形成饼状图。代码如下：
+
+		- (void)drawRect:(CGRect)rect{
+			// 设置饼状数据，分别占10%、20%、70%
+    		NSArray *arr = [NSArray arrayWithObjects:@10, @20, @70, nil];
+    		CGFloat radius = rect.size.width * 0.5;
+    		CGPoint center = CGPointMake(radius, radius);
+    
+    		__block CGFloat startA = 0;
+    		__block CGFloat angle = 0;
+    		__block CGFloat endA = 0;
+    		// 依次画数组中的扇形
+    		for (int i = 0; i < arr.count; i++) {
+        		startA = endA;
+        		angle = [arr[i] integerValue] / 100.0 * M_PI * 2;
+        		endA = startA + angle;
+        
+        		UIBezierPath *path = [UIBezierPath bezierPathWithArcCenter:center radius:radius startAngle:startA endAngle:endA clockwise:YES];
+        
+        		[path addLineToPoint:center];
+        		// 设置颜色这里选择设置随机颜色，代码就不贴了。
+        		[[self colorRandom] set];
+        		[path fill];
+    		}
+		}
+
+![图3.2](https://github.com/wwhisdavid/MD_Pictures/blob/master/Quartz2D/图3.2.png?raw=true)
+### 3.3 柱状图
+
+* 本节说明如何使用UIBezierPath绘制柱状图，通过排布矩形实现：
+
+		- (void)drawRect:(CGRect)rect
+		{
+    		NSArray *arr = @[@10, @20, @30, @15];
+
+    		CGFloat x = 0;
+    		CGFloat y = 0;
+    		CGFloat w = 0;
+    		CGFloat h = 0;
+    
+    		for (int i = 0; i < arr.count; i++) {
+        		w = rect.size.width / (2 * arr.count - 1);
+        		x = 2 * w * i;
+        		h = [arr[i] floatValue] / 100.0 * rect.size.height;
+        		y = rect.size.height - h;
+        
+        		UIBezierPath *path = [UIBezierPath bezierPathWithRect:CGRectMake(x, y, w, h)];
+        
+        		[[self colorRandom] set];
+        		[path fill];
+        
+        
+    		}
+		} 
+
+![图3.3](https://github.com/wwhisdavid/MD_Pictures/blob/master/Quartz2D/图3.3.png?raw=true)
+## 4.UIView的生命周期
+
+## 5.
