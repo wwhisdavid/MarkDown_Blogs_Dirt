@@ -8,8 +8,10 @@
 * 基本绘图案例。
 * UIView。
 * 绘图进阶。
-* 上下文栈。
+* 上下文栈（暂时不写）。
 * 矩阵变换。
+
+## [Demo 链接](https://github.com/wwhisdavid/Quartz2DDemo)
 
 ## 1.什么的Quartz2D？
 
@@ -567,4 +569,138 @@
 
 * 还有很多关于布局的不常用方法，这里暂不介绍，有兴趣可以去看[文档](https://developer.apple.com/library/ios/documentation/UIKit/Reference/UIView_Class/index.html)。
 
-## 5.
+## 5. 绘图进阶
+
+### 5.1 位图上下文
+
+* 前文谈到了在图形上下文的绘制。除了图形上下文，Quartz 2D还提供了其他上下文给其他设备和场景。这里说说在iOS上使用比较多的位图上下文。位图上下文在UIKit的载体就是熟悉的UIImage了。
+
+* 简单来说，位图上下文提供了画板让我们可以以图片（bitmap）形式渲染图形。
+
+* 接下来，来看看位图上下文的基本使用，以及下文会以一个例子来结婚图形上下文和位图上下文的使用。
+
+* 1.取到需要被操作的图片：
+
+			UIImage *image = [UIImage imageNamed:@"mogu"];
+			
+* 2.开启一个位图上下文，注意位图上下文跟view的渲染无关联，所以不需要在drawRect.
+
+			// size:     位图上下文的尺寸（新图片的尺寸）
+			// opaque:   不透明度 YES：不透明 NO:透明.通常使用透明的上下文
+			// scale:    通常不需要缩放上下文，取值为0，表示不缩放
+			UIGraphicsBeginImageContextWithOptions(image.size, NO, 0);
+			
+* 3.描述上下文
+
+			// 画背景,描述上下文的渲染范围。
+          [image drawInRect:CGRectMake(0, 0, image.size.width, image.size.height)];
+            
+          // 画文字。注意：下面设置的字体和位置是基于图片大小。在demo中的图尺寸是736*618，我们将按20号字体画文字在上下文，但是下文我们将image赋给的UIImageView的尺寸是300*300，所以渲染的image将会被缩放，文字此时已经被渲染在image上，作为图片的一部分，字体也会一起缩放。
+          NSString *string = @"mogujie.com";
+          [string drawAtPoint:CGPointMake(20, 20) withAttributes:@{NSFontAttributeName:[UIFont systemFontOfSize:20],NSForegroundColorAttributeName:[UIColor blackColor]}];
+            
+          // 从上下文中获取图片
+          imageView.image = UIGraphicsGetImageFromCurrentImageContext();
+            
+          // 关闭上下文
+          UIGraphicsEndImageContext();
+
+### 5.2 案例：截屏功能
+
+* demo中`ScreenshotViewController.m`描述了一种截屏功能的实现。
+
+* 以下说明核心代码：
+
+		 
+* 1.开启位图上下文
+        
+        UIGraphicsBeginImageContextWithOptions(self.view.bounds.size, NO, 0);
+        
+* 2.根据手势截取矩形
+  
+        UIBezierPath *path = [UIBezierPath bezierPathWithRect:self.clipView.frame];
+        // 截取上下文中路径所框部分（有点像clipToBounds，提前划出了能给被显示范围）。
+        [path addClip];
+        
+* 3.获取上下文
+  
+        CGContextRef ctx = UIGraphicsGetCurrentContext();
+        
+* 4.渲染图层到当前已被裁剪的上下文
+
+		  // 将当前控制器上图视图的图层渲染到位图上下文中。注意：这一步相当于将图层的元素整合成图片贴到上下文作为裁剪素材，被clipToBounds。
+        [_imageView.layer renderInContext:ctx];
+        
+* 5.从上下文中得到位图
+
+        UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+        
+* 6.关闭上下文
+        UIGraphicsEndImageContext();
+        
+        _imageView.image = image;
+        
+* 7.截取板移除
+        
+        [self.clipView removeFromSuperview];
+
+### 5.3 案例：涂鸦板
+
+* 继续介绍下一个案例来加强我们对Quartz 2D绘图过程的理解。
+
+* 要实现一个涂鸦板（类似“你画我猜”），核心功能就是渲染我们手指绘画的路径，次要功能是定制我们绘制的样式。
+
+* 详细见Demo（DarwingBoardViewController.m 及相关类）。
+
+## 6. 上下文栈
+
+### 暂时不写，这块内容的价值待发掘。
+
+## 7. 矩阵变换
+
+### 7.1 核心API
+
+*	// 位移变换，用于位移上下文。
+	*  CGContextRef c 上下文
+	*  CGFloat tx 横坐标位移
+	*  CGFloat ty 纵坐标位移
+	
+	`void CGContextTranslateCTM ( CGContextRef c, CGFloat tx, CGFloat ty );`
+	
+*	// 缩放变换，用于缩放上下文。
+	*  CGContextRef c 上下文
+	*  CGFloat sx 横坐标方向缩放因子（保持原样是1.0）
+	*  CGFloat sy 纵坐标方向缩放因子
+	
+	`void CGContextScaleCTM ( CGContextRef c, CGFloat sx, CGFloat sy );`
+	
+*	// 缩放变换，用于缩放上下文。
+	*  CGContextRef c 上下文
+	*  CGFloat angel 选择角度（顺时针为正）
+	
+	`void CGContextRotateCTM ( CGContextRef c, CGFloat angle );`
+	
+### 7.2 示例
+
+* 以下代码1和效果图1：
+
+		CGContextTranslateCTM (myContext, w/4, 0);
+   		CGContextScaleCTM (myContext, .25,  .5);
+   		CGContextRotateCTM (myContext, radians ( 22.));
+   		
+![图7.1](https://github.com/wwhisdavid/MD_Pictures/blob/master/Quartz2D/图7.1.png?raw=true)
+
+* 以下代码2和效果图2：
+
+		CGContextRotateCTM (myContext, radians ( 22.));
+   		CGContextScaleCTM (myContext, .25,  .5);
+   		CGContextTranslateCTM (myContext, w/4, 0);
+   		
+![图7.2](https://github.com/wwhisdavid/MD_Pictures/blob/master/Quartz2D/图7.2.png?raw=true)
+
+## 参考链接：
+1. [《Quartz2D》 by Ljson](http://www.jianshu.com/p/0e785269dccc)
+2. [《UIView》 by 幻想无极](http://www.cnblogs.com/hxwj/p/5217611.html)
+3. [UIView文档](developer.apple.com/library/etc/redirect/xcode/ios/1151/documentation/UIKit/Reference/UIView_Class/index.html)
+4. [Quartz 2D文档](developer.apple.com/library/etc/redirect/xcode/ios/1151/documentation/GraphicsImaging/Conceptual/drawingwithquartz2d/dq_overview/dq_overview.html)
+  
